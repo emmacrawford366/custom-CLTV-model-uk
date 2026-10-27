@@ -1,0 +1,8 @@
+{
+  "algorithm_suffix": "uk_rexona_sure_v1",
+  "target_brands": ["Rexona", "Sure"],
+  "fallback_brand_keywords": ["Rexona", "Sure"],
+  "target_market": "UK",
+  "brand_filter_list": "Rexona,Sure",
+  "brand_tag": "rexona"
+}

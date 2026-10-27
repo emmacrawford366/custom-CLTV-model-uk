@@ -73,6 +73,8 @@ To avoid duplicating notebook/interface logic per brand, this repo now includes:
 - [brand_configs.py](./src/brand_configs.py): shared dataclasses and loader
 - [dmc.json](./API/brands/dmc.json): Dove Men+Care values
 - [liv.json](./API/brands/liv.json): Liquid IV values
+- [axe.json](./API/brands/axe.json): Axe/Lynx (UK) values from NTB interface mapping
+- [rexona.json](./API/brands/rexona.json): Rexona/Sure (UK) values from NTB interface mapping
 
 ### Usage example
 ```python
@@ -80,14 +82,14 @@ from src.ACMPipelineClass import get_cloudformation_env_vars
 from src.brand_configs import CommonPipelineConfig, create_pipeline_for_brand
 
 common = CommonPipelineConfig(
-    algorithm_prefix="ntb_audience",
+    algorithm_prefix="cltv_audience",
     instance_id="amcy3dkn05n",
     membership_identifier="90d28e98-e6e3-40ef-a311-07456c4c8d40",
     amc_account_id="ENTITY3F46DUUW73OQH",
 )
 
 result = create_pipeline_for_brand(
-    brand_key="dmc",  # or "liv"
+    brand_key="axe",  # or "rexona", "dmc", "liv"
     common=common,
     cloud_formation_env_vars=get_cloudformation_env_vars(),
 )

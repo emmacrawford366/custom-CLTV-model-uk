@@ -1,0 +1,8 @@
+{
+  "algorithm_suffix": "uk_axe_lynx_v1",
+  "target_brands": ["Axe", "Lynx"],
+  "fallback_brand_keywords": ["Axe", "Lynx"],
+  "target_market": "UK",
+  "brand_filter_list": "Axe,Lynx",
+  "brand_tag": "axe"
+}
