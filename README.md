@@ -101,6 +101,31 @@ algorithm_name = result["algorithm_name"]
 
 This keeps all shared logic in one place while letting each brand change only its own JSON config.
 
+## Externalized Lambda Functions (CloudFormation)
+
+Inline Lambda `ZipFile` code from [AMC_Custom_Models_Accelerator.yaml](./AMC_Custom_Models_Accelerator.yaml) has been extracted into:
+
+- [lambdas/](./lambdas) (one folder per Lambda, each with `index.py`)
+- Deploy script: [deploy_externalized_lambdas.sh](./scripts/deploy_externalized_lambdas.sh)
+
+The CloudFormation template now expects these parameters at deploy time:
+
+- `LambdaCodeS3Bucket`
+- `LambdaCodeS3KeyPrefix`
+- `LambdaCodeVersion`
+
+### Deploying extracted Lambda code
+
+```bash
+./scripts/deploy_externalized_lambdas.sh \
+  --stack-name <your-stack-name> \
+  --artifact-bucket <your-artifact-bucket> \
+  --version <artifact-version> \
+  --region us-east-1
+```
+
+This script packages each [lambdas/](./lambdas) function into a zip, uploads to S3, and deploys the stack update with the required parameter overrides.
+
 
 ## How to Run
 

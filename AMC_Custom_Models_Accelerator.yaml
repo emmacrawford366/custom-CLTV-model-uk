@@ -1,0 +1,1700 @@
+Parameters:
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket containing packaged Lambda artifacts
+  LambdaCodeS3KeyPrefix:
+    Type: String
+    Default: lambda-artifacts
+    Description: S3 key prefix for Lambda zip artifacts
+  LambdaCodeVersion:
+    Type: String
+    Description: Artifact version (used as zip filename, e.g. 2026-11-02-1)
+
+Resources:
+  ACMDataBucket10FB3863:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: ${AWS::StackName}-acm-artifacts-bucket-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMDataBucket/Resource
+  ACMECRRepository0DA7DBA7:
+    Type: AWS::ECR::Repository
+    Properties:
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"Delete untagged images after 30 days","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countNumber":30,"countUnit":"days"},"action":{"type":"expire"}}]}'
+      RepositoryName:
+        Fn::Sub: ${AWS::StackName}-acm-repo
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMECRRepository/Resource
+  ACMAlgorithmConfigsTable54D3AB22:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: acm_algorithm_name
+          AttributeType: S
+        - AttributeName: instance_id
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: acm_algorithm_name
+          KeyType: HASH
+        - AttributeName: instance_id
+          KeyType: RANGE
+      TableName:
+        Fn::Sub: ${AWS::StackName}-ACM-Algorithm-Configs
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMAlgorithmConfigsTable/Resource
+  PipelineExecutionsTable2DEF886F:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: acm_algorithm_name
+          AttributeType: S
+        - AttributeName: execution_timestamp
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: acm_algorithm_name
+          KeyType: HASH
+        - AttributeName: execution_timestamp
+          KeyType: RANGE
+      TableName:
+        Fn::Sub: ${AWS::StackName}-PipeLine-Executions
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      aws:cdk:path: mmmtesting/PipelineExecutionsTable/Resource
+  AmazonAdsApiSecrets3DCB4A44:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Amazon Ads API Secrets for ACM
+      Name:
+        Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+      SecretString: '{"CLIENT_ID":"","CLIENT_SECRET":"","REFRESH_TOKEN":""}'
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      aws:cdk:path: mmmtesting/AmazonAdsApiSecrets/Resource
+  ACMCloudWatchAccessRole4111A26A:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: cleanrooms-ml.amazonaws.com
+        Version: "2012-10-17"
+      Description: Role for ACM CloudWatch access
+      RoleName:
+        Fn::Sub: ${AWS::StackName}-ACM-CloudWatchAccess
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMCloudWatchAccessRole/Resource
+  ACMCloudWatchAccessRoleDefaultPolicyF179A896:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - cloudwatch:PutMetricData
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:DescribeLogStreams
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: ACMCloudWatchAccessRoleDefaultPolicyF179A896
+      Roles:
+        - Ref: ACMCloudWatchAccessRole4111A26A
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMCloudWatchAccessRole/DefaultPolicy/Resource
+  LambdaExecutionRoleD5C26073:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: "2012-10-17"
+      Description: Role for ACM Lambda functions
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaExecutionRole/Resource
+  LambdaExecutionRoleDefaultPolicy6D69732F:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:Query
+              - dynamodb:Scan
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - ACMAlgorithmConfigsTable54D3AB22
+                  - Arn
+              - Fn::GetAtt:
+                  - PipelineExecutionsTable2DEF886F
+                  - Arn
+          - Action: secretsmanager:GetSecretValue
+            Effect: Allow
+            Resource:
+              Ref: AmazonAdsApiSecrets3DCB4A44
+          - Action:
+              - sagemaker:CreateTrainingJob
+              - sagemaker:DescribeTrainingJob
+              - sagemaker:CreateTransformJob
+              - sagemaker:DescribeTransformJob
+            Effect: Allow
+            Resource:
+              Fn::Sub: arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:*
+          - Action:
+              - s3:PutObject
+              - s3:ListBucket
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - ACMDataBucket10FB3863
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - ACMDataBucket10FB3863
+                        - Arn
+                    - /*
+        Version: "2012-10-17"
+      PolicyName: LambdaExecutionRoleDefaultPolicy6D69732F
+      Roles:
+        - Ref: LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaExecutionRole/DefaultPolicy/Resource
+  RequestsLayer58858B55:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      CompatibleRuntimes:
+        - python3.9
+        - python3.10
+      Content:
+        S3Bucket: public-file-hosting-repository
+        S3Key: optional-folder/requestspy.zip
+      Description: Lambda Layer containing the Requests library
+      LayerName:
+        Fn::Sub: ${AWS::StackName}-requests-layer
+    Metadata:
+      aws:cdk:path: mmmtesting/RequestsLayer/Resource
+  AcmApiLayer1280CA49:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      CompatibleRuntimes:
+        - python3.9
+        - python3.10
+      Content:
+        S3Bucket: public-file-hosting-repository
+        S3Key: optional-folder/acm_api_layer.zip
+      Description: Lambda Layer containing the ACM API library
+      LayerName:
+        Fn::Sub: ${AWS::StackName}-acm-api-layer
+    Metadata:
+      aws:cdk:path: mmmtesting/AcmApiLayer/Resource
+  LambdaCreateinferencejobF2163FFE:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/create_inference_job/${LambdaCodeVersion}.zip
+      Description: Lambda function for create_inference_job
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-create_inference_job
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaCreateinferencejob/Resource
+  LambdaCreatemlinputchannelB0D3DF8F:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/create_ml_input_channel/${LambdaCodeVersion}.zip
+      Description: Lambda function for create_ml_input_channel
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-create_ml_input_channel
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaCreatemlinputchannel/Resource
+  LambdaCreatetrainingjob70D71F81:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/create_training_job/${LambdaCodeVersion}.zip
+      Description: Lambda function for create_training_job
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-create_training_job
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaCreatetrainingjob/Resource
+  LambdaMonitorinference9C3E2BEA:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/monitor_inference/${LambdaCodeVersion}.zip
+      Description: Lambda function for monitor_inference
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-monitor_inference
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaMonitorinference/Resource
+  LambdaMonitormlinputchannel6F0EAA9D:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/monitor_ml_input_channel/${LambdaCodeVersion}.zip
+      Description: Lambda function for monitor_ml_input_channel
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-monitor_ml_input_channel
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaMonitormlinputchannel/Resource
+  LambdaMonitortraining8922D86B:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/monitor_training/${LambdaCodeVersion}.zip
+      Description: Lambda function for monitor_training
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-monitor_training
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaMonitortraining/Resource
+  LambdaUpdatedynamodbECD1DA54:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/update_dynamodb/${LambdaCodeVersion}.zip
+      Description: Lambda function for update_dynamoDB
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-update_dynamoDB
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaUpdatedynamodb/Resource
+  LambdaCreatemodeleddataset34A2C1B7:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/create_modeled_dataset/${LambdaCodeVersion}.zip
+      Description: Lambda function for create_modeled_dataset
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-create_modeled_dataset
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaCreatemodeleddataset/Resource
+  LambdaCreatemodeleddatasetupload5D0AE49B:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/create_modeled_dataset_upload/${LambdaCodeVersion}.zip
+      Description: Lambda function for create_modeled_dataset_upload
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-create_modeled_dataset_upload
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaCreatemodeleddatasetupload/Resource
+  LambdaGetmodeleddatasetuploadDA3AB9EB:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/get_modeled_dataset_upload/${LambdaCodeVersion}.zip
+      Description: Lambda function for get_modeled_dataset_upload
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-get_modeled_dataset_upload
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaGetmodeleddatasetupload/Resource
+  LambdaGetmldataexport437646E8:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/get_ml_data_export/${LambdaCodeVersion}.zip
+      Description: Lambda function for get_ml_data_export
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-get_ml_data_export
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaGetmldataexport/Resource
+  LambdaCreatemldataexportAF36B3A5:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/create_ml_data_export/${LambdaCodeVersion}.zip
+      Description: Lambda function for create_ml_data_export
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-create_ml_data_export
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaCreatemldataexport/Resource
+  LambdaDownloadurlF9DB4E10:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: LambdaCodeS3Bucket
+        S3Key:
+          Fn::Sub: ${LambdaCodeS3KeyPrefix}/download_url/${LambdaCodeVersion}.zip
+      Description: Lambda function for download_url
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_CONFIGS:
+            Ref: ACMAlgorithmConfigsTable54D3AB22
+          DYNAMODB_TABLE_EXECUTIONS:
+            Ref: PipelineExecutionsTable2DEF886F
+          SECRETS_NAME:
+            Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+          S3_BUCKET_NAME:
+            Ref: ACMDataBucket10FB3863
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-download_url
+      Handler: index.lambda_handler
+      Layers:
+        - Ref: RequestsLayer58858B55
+        - Ref: AcmApiLayer1280CA49
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRoleD5C26073
+          - Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      Timeout: 60
+    DependsOn:
+      - LambdaExecutionRoleDefaultPolicy6D69732F
+      - LambdaExecutionRoleD5C26073
+    Metadata:
+      aws:cdk:path: mmmtesting/LambdaDownloadurl/Resource
+  StepFunctionRoleC4BAB6F8:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+        Version: "2012-10-17"
+      Description: Role for ACM Step Function
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    Metadata:
+      aws:cdk:path: mmmtesting/StepFunctionRole/Resource
+  StepFunctionRoleDefaultPolicy94322EE6:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: lambda:InvokeFunction
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - LambdaCreateinferencejobF2163FFE
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaCreatemlinputchannelB0D3DF8F
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaCreatetrainingjob70D71F81
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaMonitorinference9C3E2BEA
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaMonitormlinputchannel6F0EAA9D
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaMonitortraining8922D86B
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaUpdatedynamodbECD1DA54
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaCreatemodeleddataset34A2C1B7
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaCreatemodeleddatasetupload5D0AE49B
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaGetmodeleddatasetuploadDA3AB9EB
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaGetmldataexport437646E8
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaCreatemldataexportAF36B3A5
+                  - Arn
+              - Fn::GetAtt:
+                  - LambdaDownloadurlF9DB4E10
+                  - Arn
+        Version: "2012-10-17"
+      PolicyName: StepFunctionRoleDefaultPolicy94322EE6
+      Roles:
+        - Ref: StepFunctionRoleC4BAB6F8
+    Metadata:
+      aws:cdk:path: mmmtesting/StepFunctionRole/DefaultPolicy/Resource
+  ACMPipeline:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        Fn::Join:
+          - ""
+          - - '{"Comment": "ML Pipeline with conditional workflow and parallel data processing", "StartAt": "RenameInputChannelsChoice", "States": {"RenameInputChannelsChoice": {"Type": "Choice", "Choices": [{"Variable": "$.workflow_type", "StringEquals": "train", "Next": "MapTrainingChannels"}, {"Variable": "$.workflow_type", "StringEquals": "inference", "Next": "MapInferenceChannels"}], "Default": "TrainingJobFailed"}, "MapTrainingChannels": {"Type": "Pass", "Parameters": {"workflow_type.$": "$.workflow_type", "account_id.$": "$.account_id", "instance_id.$": "$.instance_id", "configured_model_algorithm_associations.$": "$.configured_model_algorithm_associations", "training_parameters.$": "$.training_parameters", "mlinputchannels.$": "$.training_input_channels", "acm_algorithm_name.$": "$.acm_algorithm_name", "current_time.$": "$.current_time", "use_case_type.$": "$.use_case_type", "data_type.$": "$.data_type"}, "Next": "ProcessInputChannels"}, "MapInferenceChannels": {"Type": "Pass", "Parameters": {"workflow_type.$": "$.workflow_type", "account_id.$": "$.account_id", "instance_id.$": "$.instance_id", "schema.$": "$.schema", "configured_model_algorithm_associations.$": "$.configured_model_algorithm_associations", "inference_parameters.$": "$.inference_parameters", "mlinputchannels.$": "$.inference_input_channels", "acm_algorithm_name.$": "$.acm_algorithm_name", "current_time.$": "$.current_time", "use_case_type.$": "$.use_case_type", "data_type.$": "$.data_type"}, "Next": "ProcessInputChannels"}, "ProcessInputChannels": {"Type": "Map", "Comment": "Process each ML input channel in parallel", "ItemsPath": "$.mlinputchannels", "MaxConcurrency": 20, "ResultPath": "$.processed_channels", "Iterator": {"StartAt": "CalculateDelay", "States": {"CalculateDelay": {"Type": "Pass", "Parameters": {"wait_time.$": "States.MathRandom(1, 300)"}, "ResultPath": "$.wait_time", "Next": "InitialWait"}, "InitialWait": {"Type": "Wait", "SecondsPath": "$.wait_time.wait_time", "Next": "ProcessSingleChannel"}, "ProcessSingleChannel": {"Type": "Task", "Comment": "Lambda function to process individual input channel", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaCreatemlinputchannelB0D3DF8F
+                - Arn
+            - '", "Payload": {"channel_data.$": "$", "workflow_type.$": "$$.Execution.Input.workflow_type", "account_id.$": "$$.Execution.Input.account_id", "instance_id.$": "$$.Execution.Input.instance_id", "model_arn.$": "$$.Execution.Input.configured_model_algorithm_associations"}}, "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "ChannelProcessingFailed", "ResultPath": "$.error_info"}], "ResultSelector": {"channel_details.$": "$.Payload.body"}, "Retry": [{"ErrorEquals": ["States.ALL"], "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2}], "Next": "waitforapi"}, "waitforapi": {"Type": "Wait", "Seconds": 300, "Next": "MonitorMLInputChannel"}, "MonitorMLInputChannel": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaMonitormlinputchannel6F0EAA9D
+                - Arn
+            - '", "Payload": {"mlInputChannelId.$": "$.channel_details.mlInputChannelId", "workflow_type.$": "$$.Execution.Input.workflow_type", "account_id.$": "$$.Execution.Input.account_id", "instance_id.$": "$$.Execution.Input.instance_id"}}, "ResultSelector": {"monitoring_result.$": "$.Payload.body"}, "ResultPath": "$.monitoring", "Retry": [{"ErrorEquals": ["States.ALL"], "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2}], "Next": "CheckChannelStatus", "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "ChannelProcessingFailed", "ResultPath": "$.error_info"}]}, "CheckChannelStatus": {"Type": "Choice", "Choices": [{"Variable": "$.monitoring.monitoring_result.status", "StringEquals": "CREATE_IN_PROGRESS", "Next": "waitforapi"}, {"Variable": "$.monitoring.monitoring_result.status", "StringEquals": "ACTIVE", "Next": "ChannelReady"}], "Default": "ChannelProcessingFailed"}, "ChannelReady": {"Type": "Pass", "End": true}, "ChannelProcessingFailed": {"Type": "Fail", "Error": "ChannelProcessingError", "CausePath": "$.monitoring.monitoring_result.error_info.error_message"}}}, "Catch": [{"ErrorEquals": ["States.ALL"], "Next": "DownloadErrorLog", "ResultPath": "$.error_info"}], "Next": "CheckWorkflowType"}, "CheckWorkflowType": {"Type": "Choice", "Comment": "Route based on workflow_type parameter", "Choices": [{"Variable": "$.workflow_type", "StringEquals": "train", "Next": "RunTrainingJob"}, {"Variable": "$.workflow_type", "StringEquals": "inference", "Next": "RunInferenceJob"}], "Default": "TrainingJobFailed"}, "RunTrainingJob": {"Type": "Task", "Comment": "Execute the main training job with processed data", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaCreatetrainingjob70D71F81
+                - Arn
+            - '", "Payload.$": "$"}, "ResultSelector": {"training_response.$": "$.Payload.body"}, "ResultPath": "$.training_job_response", "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "TrainingJobFailed", "ResultPath": "$.error_info"}], "Next": "wait5minutestraining"}, "wait5minutestraining": {"Type": "Wait", "Seconds": 300, "Next": "MonitorTrainingJob"}, "MonitorTrainingJob": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaMonitortraining8922D86B
+                - Arn
+            - '", "Payload": {"trainedModelId.$": "$.training_job_response.training_response.trainedModelId", "workflow_type.$": "$.workflow_type", "account_id.$": "$.account_id", "instance_id.$": "$.instance_id"}}, "ResultSelector": {"training_job_monitoring_result.$": "$.Payload.body"}, "ResultPath": "$.training_job_monitoring", "Retry": [{"ErrorEquals": ["States.ALL"], "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2}], "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "DownloadErrorLog", "ResultPath": "$.error_info"}], "Next": "checkTrainingStatus"}, "checkTrainingStatus": {"Type": "Choice", "Choices": [{"Variable": "$.training_job_monitoring.training_job_monitoring_result.status", "StringEquals": "CREATE_IN_PROGRESS", "Next": "wait5minutestraining"}, {"Variable": "$.training_job_monitoring.training_job_monitoring_result.status", "StringEquals": "ACTIVE", "Next": "checkMeasurementWorkflow"}], "Default": "TrainingJobFailed"}, "checkMeasurementWorkflow": {"Type": "Choice", "Choices": [{"Variable": "$.use_case_type", "StringEquals": "measurement", "Next": "CreateMLDataExport"}], "Default": "TrainingComplete"}, "CreateMLDataExport": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaCreatemldataexportAF36B3A5
+                - Arn
+            - '", "Payload.$": "$"}, "ResultSelector": {"mlDataExportId.$": "$.Payload.body.mlDataExportId", "date_type.$": "$.Payload.body.data_type"}, "ResultPath": "$.mlDataExport", "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "DownloadErrorLog", "ResultPath": "$.error_info"}], "Next": "wait5minutesexport"}, "wait5minutesexport": {"Type": "Wait", "Seconds": 300, "Next": "GetMLDataExport"}, "GetMLDataExport": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaGetmldataexport437646E8
+                - Arn
+            - '", "Payload.$": "$"}, "ResultSelector": {"mlDataExport.$": "$.Payload.body.mlDataExport"}, "ResultPath": "$.mlDataExportStatus", "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "DownloadErrorLog", "ResultPath": "$.error_info"}], "Next": "DownloadMLDataExport"}, "DownloadMLDataExport": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaDownloadurlF9DB4E10
+                - Arn
+            - '", "Payload.$": "$"}, "ResultSelector": {"downloadResult.$": "$.Payload.body"}, "ResultPath": "$.downloadedFiles", "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "DownloadErrorLog", "ResultPath": "$.error_info"}], "Next": "UpdateDynamoComplete"}, "TrainingComplete": {"Type": "Pass", "Next": "UpdateDynamoComplete"}, "CompleteExit": {"Type": "Succeed", "Comment": "Workflow completed successfully"}, "wait5minutesinference": {"Type": "Wait", "Seconds": 300, "Next": "MonitorInferenceJob"}, "RunInferenceJob": {"Type": "Task", "Comment": "Execute the main inference job with MLInput data", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaCreateinferencejobF2163FFE
+                - Arn
+            - '", "Payload.$": "$"}, "ResultSelector": {"trainedModelInferenceJobId.$": "$.Payload.body.trainedModelInferenceJobId"}, "ResultPath": "$.inferenceJob", "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "InferenceJobFailed", "ResultPath": "$.error_info"}], "Next": "wait5minutesinference"}, "MonitorInferenceJob": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaMonitorinference9C3E2BEA
+                - Arn
+            - '", "Payload.$": "$"}, "ResultSelector": {"inference_monitoring_result.$": "$.Payload.body"}, "ResultPath": "$.monitoring", "Retry": [{"ErrorEquals": ["States.ALL"], "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2}], "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "DownloadErrorLog", "ResultPath": "$.error_info"}], "Next": "checkInferenceStatus"}, "checkInferenceStatus": {"Type": "Choice", "Choices": [{"Variable": "$.monitoring.inference_monitoring_result.status", "StringEquals": "CREATE_IN_PROGRESS", "Next": "wait5minutesinference"}, {"Variable": "$.monitoring.inference_monitoring_result.status", "StringEquals": "ACTIVE", "Next": "InferenceComplete"}], "Default": "InferenceJobFailed"}, "TrainingJobFailed": {"Type": "Pass", "Next": "DownloadErrorLog"}, "InferenceJobFailed": {"Type": "Pass", "Comment": "Execution failed", "Next": "DownloadErrorLog"}, "DownloadErrorLog": {"Type": "Task", "Comment": "Download error logs if available, otherwise pass through", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaDownloadurlF9DB4E10
+                - Arn
+            - '", "Payload.$": "$"}, "ResultSelector": {"error_log_download_result.$": "$.Payload.body"}, "ResultPath": "$.error_log_download", "Catch": [{"ErrorEquals": ["States.ALL"], "Next": "UpdateDynamoFailed", "ResultPath": "$.download_error_info"}], "Next": "UpdateDynamoFailed"}, "UpdateDynamoFailed": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaUpdatedynamodbECD1DA54
+                - Arn
+            - '", "Payload": {"Payload.$": "$", "end_status": "FAILED"}}, "Next": "JobFailedExit"}, "UpdateDynamoComplete": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaUpdatedynamodbECD1DA54
+                - Arn
+            - '", "Payload": {"Payload.$": "$", "end_status": "COMPLETED"}}, "Next": "CompleteExit"}, "JobFailedExit": {"Type": "Fail", "Comment": "Execution failed", "Cause": "ACM Training job failed - check logs for more details", "Error": "ACMjobError"}, "InferenceComplete": {"Type": "Pass", "Next": "CreateModeledDataset"}, "CreateModeledDataset": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaCreatemodeleddataset34A2C1B7
+                - Arn
+            - '", "Payload.$": "$"}, "ResultSelector": {"modeledDatasetId.$": "$.Payload.body.modeledDatasetId", "inferenceJobId.$": "$.Payload.body.inferenceJobId"}, "ResultPath": "$.modeledDataset", "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "DownloadErrorLog", "ResultPath": "$.error_info"}], "Next": "wait5minutesdataset"}, "wait5minutesdataset": {"Type": "Wait", "Seconds": 300, "Next": "CreateModeledDatasetUpload"}, "CreateModeledDatasetUpload": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaCreatemodeleddatasetupload5D0AE49B
+                - Arn
+            - '", "Payload.$": "$"}, "ResultSelector": {"uploadJobId.$": "$.Payload.body.uploadJobId", "modeledDatasetId.$": "$.Payload.body.modeledDatasetId"}, "ResultPath": "$.datasetUpload", "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "DownloadErrorLog", "ResultPath": "$.error_info"}], "Next": "wait5minutesdatasetupload"}, "wait5minutesdatasetupload": {"Type": "Wait", "Seconds": 300, "Next": "GetModeledDatasetUpload"}, "GetModeledDatasetUpload": {"Type": "Task", "Resource": "arn:aws:states:::lambda:invoke", "Parameters": {"FunctionName": "'
+            - Fn::GetAtt:
+                - LambdaGetmodeleddatasetuploadDA3AB9EB
+                - Arn
+            - '", "Payload.$": "$"}, "ResultSelector": {"status.$": "$.Payload.body.status", "uploadDetails.$": "$.Payload.body.uploadDetails"}, "ResultPath": "$.uploadStatus", "Catch": [{"ErrorEquals": ["States.TaskFailed"], "Next": "DownloadErrorLog", "ResultPath": "$.error_info"}], "Next": "checkDatasetUploadStatus"}, "checkDatasetUploadStatus": {"Type": "Choice", "Choices": [{"Variable": "$.uploadStatus.status", "StringEquals": "CREATE_IN_PROGRESS", "Next": "wait5minutesdatasetupload"}, {"Variable": "$.uploadStatus.status", "StringEquals": "ACTIVE", "Next": "UpdateDynamoComplete"}], "Default": "UpdateDynamoFailed"}}}'
+      RoleArn:
+        Fn::GetAtt:
+          - StepFunctionRoleC4BAB6F8
+          - Arn
+      StateMachineName:
+        Fn::Sub: ${AWS::StackName}-ACM-Pipeline
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMPipeline
+  SageMakerNotebookRole63C8214F:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+        Version: "2012-10-17"
+      Description: Role for SageMaker notebook instance
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/AmazonSageMakerFullAccess
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    Metadata:
+      aws:cdk:path: mmmtesting/SageMakerNotebookRole/Resource
+  SageMakerNotebookRoleDefaultPolicy581295A7:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:Query
+              - dynamodb:Scan
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - ACMAlgorithmConfigsTable54D3AB22
+                  - Arn
+              - Fn::GetAtt:
+                  - PipelineExecutionsTable2DEF886F
+                  - Arn
+          - Action: secretsmanager:GetSecretValue
+            Effect: Allow
+            Resource:
+              Ref: AmazonAdsApiSecrets3DCB4A44
+          - Action:
+              - states:StartExecution
+              - states:DescribeExecution
+              - states:GetExecutionHistory
+              - states:ListExecutions
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - ACMPipeline
+                  - Arn
+              - Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${AWS::StackName}-ACM-Pipeline:*
+          - Action: ecr:GetAuthorizationToken
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+              - ecr:PutImage
+              - ecr:DescribeRepositories
+              - ecr:ListImages
+              - ecr:DescribeImages
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - ACMECRRepository0DA7DBA7
+                - Arn
+          - Action:
+              - cleanrooms-ml:CreateConfiguredModelAlgorithm
+              - cleanrooms-ml:CreateConfiguredModelAlgorithmAssociation
+              - cleanrooms-ml:GetMLConfiguration
+              - cleanrooms-ml:PutMLConfiguration
+              - cleanrooms:PassMembership
+              - cleanrooms:GetMembership
+              - cleanrooms:ListMembers
+              - cleanrooms-ml:TagResource
+            Effect: Allow
+            Resource: "*"
+          - Action: iam:PassRole
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - ACMECRAccessRoleF4304627
+                - Arn
+          - Action: iam:PassRole
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - ACMCloudWatchAccessRole4111A26A
+                - Arn
+        Version: "2012-10-17"
+      PolicyName: SageMakerNotebookRoleDefaultPolicy581295A7
+      Roles:
+        - Ref: SageMakerNotebookRole63C8214F
+    Metadata:
+      aws:cdk:path: mmmtesting/SageMakerNotebookRole/DefaultPolicy/Resource
+  ACMECRAccessRoleF4304627:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: cleanrooms-ml.amazonaws.com
+        Version: "2012-10-17"
+      Description: Role for ACM to access ECR repositories
+      RoleName:
+        Fn::Sub: ${AWS::StackName}-ACM-ECR-AccessRole
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMECRAccessRole/Resource
+  ACMECRAccessRoleDefaultPolicy001798F4:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: ecr:GetAuthorizationToken
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:GetRepositoryPolicy
+              - ecr:DescribeRepositories
+              - ecr:ListImages
+              - ecr:DescribeImages
+              - ecr:BatchGetImage
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - ACMECRRepository0DA7DBA7
+                - Arn
+        Version: "2012-10-17"
+      PolicyName: ACMECRAccessRoleDefaultPolicy001798F4
+      Roles:
+        - Ref: ACMECRAccessRoleF4304627
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMECRAccessRole/DefaultPolicy/Resource
+  ACMOperatorRoleE4C2FD56:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              AWS:
+                Fn::Sub: arn:aws:iam::${AWS::AccountId}:root
+        Version: "2012-10-17"
+      Description: Role for users to operate the ACM Custom Model Onboarding Accelerator
+      RoleName:
+        Fn::Sub: ${AWS::StackName}-ACM-Operator-Role
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMOperatorRole/Resource
+  ACMOperatorRoleDefaultPolicyF0C0FE4A:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - sagemaker:DescribeNotebookInstance
+              - sagemaker:StartNotebookInstance
+              - sagemaker:StopNotebookInstance
+            Effect: Allow
+            Resource:
+              Fn::Sub: arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:notebook-instance/${AWS::StackName}-acm-notebook
+          - Action:
+              - sagemaker:ListNotebookInstances
+              - sagemaker:CreatePresignedNotebookInstanceUrl
+              - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:ListAllMyBuckets
+              - secretsmanager:ListSecrets
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - s3:GetObject
+              - s3:GetBucketLocation
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - ACMDataBucket10FB3863
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - ACMDataBucket10FB3863
+                        - Arn
+                    - /*
+          - Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:Query
+              - dynamodb:Scan
+              - dynamodb:DescribeTable
+              - dynamodb:DescribeTimeToLive
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - ACMAlgorithmConfigsTable54D3AB22
+                  - Arn
+              - Fn::GetAtt:
+                  - PipelineExecutionsTable2DEF886F
+                  - Arn
+          - Action: dynamodb:ListTables
+            Effect: Allow
+            Resource:
+              Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/*
+          - Action:
+              - lambda:GetFunction
+              - lambda:GetFunctionConfiguration
+              - lambda:UpdateFunctionCode
+              - lambda:UpdateFunctionConfiguration
+              - lambda:InvokeFunction
+              - lambda:ListTags
+              - lambda:TagResource
+              - lambda:UntagResource
+            Effect: Allow
+            Resource:
+              Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-*
+          - Action:
+              - states:DescribeStateMachine
+              - states:DescribeExecution
+              - states:GetExecutionHistory
+              - states:ListExecutions
+              - states:UpdateStateMachine
+              - states:ListTagsForResource
+              - states:TagResource
+              - states:UntagResource
+              - states:DescribeStateMachineForExecution
+            Effect: Allow
+            Resource:
+              - Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-ACM-Pipeline
+              - Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${AWS::StackName}-ACM-Pipeline:*
+          - Action:
+              - secretsmanager:GetSecretValue
+              - secretsmanager:UpdateSecret
+              - secretsmanager:PutSecretValue
+              - secretsmanager:DescribeSecret
+            Effect: Allow
+            Resource:
+              Ref: AmazonAdsApiSecrets3DCB4A44
+          - Action: ecr:GetAuthorizationToken
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - ecr:ListImages
+              - ecr:DescribeImages
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - ACMECRRepository0DA7DBA7
+                - Arn
+          - Action: ecr:DescribeRepositories
+            Effect: Allow
+            Resource:
+              Fn::Sub: arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+          - Action:
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+              - logs:GetLogEvents
+              - logs:FilterLogEvents
+              - logs:StartQuery
+              - logs:StopQuery
+              - logs:GetQueryResults
+            Effect: Allow
+            Resource:
+              - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-*
+              - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/NotebookInstances/${AWS::StackName}-*
+              - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/stepfunctions/${AWS::StackName}-*
+          - Action:
+              - cleanrooms:ListCollaborations
+              - cleanrooms:GetCollaboration
+              - cleanrooms:ListMembers
+              - cleanrooms:ListMembership
+              - cleanrooms:ListMemberships
+              - cleanrooms:GetMembership
+              - cleanrooms:PassMembership
+              - cleanrooms:PassCollaboration
+              - cleanrooms:ListConfiguredTables
+              - cleanrooms:GetConfiguredTable
+              - cleanrooms:ListConfiguredTableAssociations
+              - cleanrooms:GetConfiguredTableAssociation
+              - cleanrooms:ListSchemas
+              - cleanrooms:GetSchema
+              - cleanrooms:ListCollaborationConfiguredAudienceModelAssociations
+              - cleanrooms:GetSchemaAnalysisRule
+              - cleanrooms:ListProtectedJobs
+              - cleanrooms:ListIdMappingTables
+              - cleanrooms:ListCollaborationIdNamespaceAssociations
+              - cleanrooms:ListProtectedQueries
+              - cleanrooms:GetProtectedQuery
+              - cleanrooms:ListAnalysisTemplates
+              - cleanrooms:GetAnalysisTemplate
+              - cleanrooms:ListPrivacyBudgets
+              - cleanrooms:GetPrivacyBudget
+              - cleanrooms:ListPrivacyBudgetTemplates
+              - cleanrooms:GetPrivacyBudgetTemplate
+              - cleanrooms-ml:ListCollaborationConfiguredModelAlgorithmAssociations
+              - cleanrooms-ml:GetCollaborationConfiguredModelAlgorithmAssociation
+              - cleanrooms-ml:ListConfiguredModelAlgorithms
+              - cleanrooms-ml:GetConfiguredModelAlgorithm
+              - cleanrooms-ml:ListConfiguredModelAlgorithmAssociations
+              - cleanrooms-ml:GetConfiguredModelAlgorithmAssociation
+              - cleanrooms-ml:ListCollaborationTrainedModels
+              - cleanrooms-ml:ListCollaborationMLInputChannels
+              - cleanrooms-ml:ListTrainedModels
+              - cleanrooms-ml:GetTrainedModel
+              - cleanrooms-ml:ListTrainedModelInferenceJobs
+              - cleanrooms-ml:GetTrainedModelInferenceJob
+              - cleanrooms-ml:ListAudienceGenerationJobs
+              - cleanrooms-ml:ListMlInputChannels
+              - cleanrooms-ml:GetMlInputChannel
+              - cleanrooms-ml:GetMLConfiguration
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: ACMOperatorRoleDefaultPolicyF0C0FE4A
+      Roles:
+        - Ref: ACMOperatorRoleE4C2FD56
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMOperatorRole/DefaultPolicy/Resource
+  ACMNotebookLifecycleConfig:
+    Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
+    Properties:
+      NotebookInstanceLifecycleConfigName:
+        Fn::Sub: ${AWS::StackName}-lifecycle-config
+      OnCreate:
+        - Content:
+            Fn::Base64:
+              Fn::Sub:
+                - "#!/bin/bash
+
+                  \        set -e
+
+
+                  \        # Download and extract from pre-signed URL
+
+                  \        cd /home/ec2-user/SageMaker
+
+
+                  \        echo \"Creating env variables\"
+
+                  \        echo \"Setting DYNAMODB_TABLE_CONFIGS to: ${DYNAMODB_TABLE_CONFIGS}\"
+
+                  \        echo \"Setting DYNAMODB_TABLE_EXECUTIONS to: ${DYNAMODB_TABLE_EXECUTIONS}\"
+
+                  \        echo \"Setting SECRETS_NAME to: ${SECRETS_NAME}\"
+
+                  \        echo \"Setting STEP_FUNCTION_ARN to: ${STEP_FUNCTION_ARN}\"
+
+                  \        echo \"Setting ECR_ACCESS_ROLE to: ${ECR_ACCESS_ROLE}\"
+
+                  \        echo \"Setting CLOUDWATCH_ACCESS_ROLE to: ${CLOUDWATCH_ACCESS_ROLE}\"
+
+                  \        echo \"Setting ECR_REPO_NAME to: ${ECR_REPO_NAME}\"
+
+                  \       \ 
+
+                  \        # Create environment file in user's home directory
+
+                  \        echo \"export DYNAMODB_TABLE_CONFIGS=${DYNAMODB_TABLE_CONFIGS}\" >> /home/ec2-user/.bashrc
+
+                  \        echo \"export DYNAMODB_TABLE_EXECUTIONS=${DYNAMODB_TABLE_EXECUTIONS}\" >> /home/ec2-user/.bashrc
+
+                  \        echo \"export SECRETS_NAME=${SECRETS_NAME}\" >> /home/ec2-user/.bashrc
+
+                  \        echo \"export STEP_FUNCTION_ARN=${STEP_FUNCTION_ARN}\" >> /home/ec2-user/.bashrc
+
+                  \        echo \"export ECR_ACCESS_ROLE=${ECR_ACCESS_ROLE}\" >> /home/ec2-user/.bashrc  \ 
+
+                  \        echo \"export CLOUDWATCH_ACCESS_ROLE=${CLOUDWATCH_ACCESS_ROLE}\" >> /home/ec2-user/.bashrc
+
+                  \        echo \"export ECR_REPO_NAME=${ECR_REPO_NAME}\" >> /home/ec2-user/.bashrc   \ 
+
+
+                  \        # Create Jupyter kernel environment file
+
+                  \        mkdir -p /home/ec2-user/.jupyter
+
+                  \        cat > /home/ec2-user/.jupyter/jupyter_notebook_config.py << EOF
+
+                  # Set environment variables for Jupyter kernels
+
+                  import os
+
+                  os.environ['DYNAMODB_TABLE_CONFIGS'] = '${DYNAMODB_TABLE_CONFIGS}'
+
+                  os.environ['DYNAMODB_TABLE_EXECUTIONS'] = '${DYNAMODB_TABLE_EXECUTIONS}'
+
+                  os.environ['SECRETS_NAME'] = '${SECRETS_NAME}'
+
+                  os.environ['STEP_FUNCTION_ARN'] = '${STEP_FUNCTION_ARN}'
+
+                  os.environ['ECR_ACCESS_ROLE'] = '${ECR_ACCESS_ROLE}'
+
+                  os.environ['CLOUDWATCH_ACCESS_ROLE'] = '${CLOUDWATCH_ACCESS_ROLE}'
+
+                  os.environ['ECR_REPO_NAME'] = '${ECR_REPO_NAME}'
+
+
+                  # Configure Jupyter to inherit environment variables
+
+                  c = get_config()
+
+                  c.KernelManager.env = {
+
+                  \    'DYNAMODB_TABLE_CONFIGS': '${DYNAMODB_TABLE_CONFIGS}',
+
+                  \    'DYNAMODB_TABLE_EXECUTIONS': '${DYNAMODB_TABLE_EXECUTIONS}',
+
+                  \    'SECRETS_NAME': '${SECRETS_NAME}',
+
+                  \    'STEP_FUNCTION_ARN': '${STEP_FUNCTION_ARN}',
+
+                  \    'ECR_ACCESS_ROLE': '${ECR_ACCESS_ROLE}',
+
+                  \    'CLOUDWATCH_ACCESS_ROLE': '${CLOUDWATCH_ACCESS_ROLE}',
+
+                  \    'ECR_REPO_NAME': '${ECR_REPO_NAME}'
+
+                  }
+
+                  EOF
+
+
+                  \        # Also create a profile.d style script for terminal sessions
+
+                  \        mkdir -p /home/ec2-user/.config
+
+                  \        cat > /home/ec2-user/.config/acm_env.sh << EOF
+
+                  export DYNAMODB_TABLE_CONFIGS='${DYNAMODB_TABLE_CONFIGS}'
+
+                  export DYNAMODB_TABLE_EXECUTIONS='${DYNAMODB_TABLE_EXECUTIONS}'
+
+                  export SECRETS_NAME='${SECRETS_NAME}'
+
+                  export STEP_FUNCTION_ARN='${STEP_FUNCTION_ARN}'
+
+                  export ECR_ACCESS_ROLE='${ECR_ACCESS_ROLE}'
+
+                  export CLOUDWATCH_ACCESS_ROLE='${CLOUDWATCH_ACCESS_ROLE}'
+
+                  export ECR_REPO_NAME='${ECR_REPO_NAME}'
+
+                  EOF
+
+
+                  \        # Source the environment file in .bashrc
+
+                  \        echo \"source /home/ec2-user/.config/acm_env.sh\" >> /home/ec2-user/.bashrc
+
+
+                  \        #Restart required for jupyter to have access to env variables
+
+                  \        sudo systemctl restart jupyter-server --no-block
+
+                  \        echo \"Create Script complete - environment variables set in user space\"
+
+
+                  \        "
+                - DYNAMODB_TABLE_CONFIGS:
+                    Ref: ACMAlgorithmConfigsTable54D3AB22
+                  DYNAMODB_TABLE_EXECUTIONS:
+                    Ref: PipelineExecutionsTable2DEF886F
+                  SECRETS_NAME:
+                    Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+                  STEP_FUNCTION_ARN:
+                    Fn::GetAtt:
+                      - ACMPipeline
+                      - Arn
+                  ECR_ACCESS_ROLE:
+                    Fn::GetAtt:
+                      - ACMECRAccessRoleF4304627
+                      - Arn
+                  CLOUDWATCH_ACCESS_ROLE:
+                    Fn::GetAtt:
+                      - ACMCloudWatchAccessRole4111A26A
+                      - Arn
+                  ECR_REPO_NAME:
+                    Ref: ACMECRRepository0DA7DBA7
+      OnStart:
+        - Content:
+            Fn::Base64:
+              Fn::Sub:
+                - "#!/bin/bash
+
+                  \        set -e
+
+
+                  \        echo \"Setting environment variables on notebook start...\"
+
+                  \        echo \"Setting DYNAMODB_TABLE_CONFIGS to: ${DYNAMODB_TABLE_CONFIGS}\"
+
+                  \        echo \"Setting DYNAMODB_TABLE_EXECUTIONS to: ${DYNAMODB_TABLE_EXECUTIONS}\"
+
+                  \        echo \"Setting SECRETS_NAME to: ${SECRETS_NAME}\"
+
+                  \        echo \"Setting STEP_FUNCTION_ARN to: ${STEP_FUNCTION_ARN}\"
+
+                  \        echo \"Setting ECR_ACCESS_ROLE to: ${ECR_ACCESS_ROLE}\"
+
+                  \        echo \"Setting CLOUDWATCH_ACCESS_ROLE to: ${CLOUDWATCH_ACCESS_ROLE}\"
+
+                  \        echo \"Setting ECR_REPO_NAME to: ${ECR_REPO_NAME}\"
+
+                  \       \ 
+
+                  \        # Set environment variables in user's bashrc
+
+                  \        echo \"export DYNAMODB_TABLE_CONFIGS=${DYNAMODB_TABLE_CONFIGS}\" >> /home/ec2-user/.bashrc
+
+                  \        echo \"export DYNAMODB_TABLE_EXECUTIONS=${DYNAMODB_TABLE_EXECUTIONS}\" >> /home/ec2-user/.bashrc
+
+                  \        echo \"export SECRETS_NAME=${SECRETS_NAME}\" >> /home/ec2-user/.bashrc
+
+                  \        echo \"export STEP_FUNCTION_ARN=${STEP_FUNCTION_ARN}\" >> /home/ec2-user/.bashrc
+
+                  \        echo \"export ECR_ACCESS_ROLE=${ECR_ACCESS_ROLE}\" >> /home/ec2-user/.bashrc  \ 
+
+                  \        echo \"export CLOUDWATCH_ACCESS_ROLE=${CLOUDWATCH_ACCESS_ROLE}\" >> /home/ec2-user/.bashrc
+
+                  \        echo \"export ECR_REPO_NAME=${ECR_REPO_NAME}\" >> /home/ec2-user/.bashrc   \ 
+
+
+                  \        # Update Jupyter environment file
+
+                  \        mkdir -p /home/ec2-user/.jupyter
+
+                  \        cat > /home/ec2-user/.jupyter/jupyter_notebook_config.py << EOF
+
+                  # Set environment variables for Jupyter kernels
+
+                  import os
+
+                  os.environ['DYNAMODB_TABLE_CONFIGS'] = '${DYNAMODB_TABLE_CONFIGS}'
+
+                  os.environ['DYNAMODB_TABLE_EXECUTIONS'] = '${DYNAMODB_TABLE_EXECUTIONS}'
+
+                  os.environ['SECRETS_NAME'] = '${SECRETS_NAME}'
+
+                  os.environ['STEP_FUNCTION_ARN'] = '${STEP_FUNCTION_ARN}'
+
+                  os.environ['ECR_ACCESS_ROLE'] = '${ECR_ACCESS_ROLE}'
+
+                  os.environ['CLOUDWATCH_ACCESS_ROLE'] = '${CLOUDWATCH_ACCESS_ROLE}'
+
+                  os.environ['ECR_REPO_NAME'] = '${ECR_REPO_NAME}'
+
+
+                  # Configure Jupyter to inherit environment variables
+
+                  c = get_config()
+
+                  c.KernelManager.env = {
+
+                  \    'DYNAMODB_TABLE_CONFIGS': '${DYNAMODB_TABLE_CONFIGS}',
+
+                  \    'DYNAMODB_TABLE_EXECUTIONS': '${DYNAMODB_TABLE_EXECUTIONS}',
+
+                  \    'SECRETS_NAME': '${SECRETS_NAME}',
+
+                  \    'STEP_FUNCTION_ARN': '${STEP_FUNCTION_ARN}',
+
+                  \    'ECR_ACCESS_ROLE': '${ECR_ACCESS_ROLE}',
+
+                  \    'CLOUDWATCH_ACCESS_ROLE': '${CLOUDWATCH_ACCESS_ROLE}',
+
+                  \    'ECR_REPO_NAME': '${ECR_REPO_NAME}'
+
+                  }
+
+                  EOF
+
+
+                  \        # Update the config environment file
+
+                  \        mkdir -p /home/ec2-user/.config
+
+                  \        cat > /home/ec2-user/.config/acm_env.sh << EOF
+
+                  export DYNAMODB_TABLE_CONFIGS='${DYNAMODB_TABLE_CONFIGS}'
+
+                  export DYNAMODB_TABLE_EXECUTIONS='${DYNAMODB_TABLE_EXECUTIONS}'
+
+                  export SECRETS_NAME='${SECRETS_NAME}'
+
+                  export STEP_FUNCTION_ARN='${STEP_FUNCTION_ARN}'
+
+                  export ECR_ACCESS_ROLE='${ECR_ACCESS_ROLE}'
+
+                  export CLOUDWATCH_ACCESS_ROLE='${CLOUDWATCH_ACCESS_ROLE}'
+
+                  export ECR_REPO_NAME='${ECR_REPO_NAME}'
+
+                  EOF
+
+
+                  \        echo \"Upgrading boto3 and AWS CLI using conda environment...\"
+
+                  \        source /home/ec2-user/anaconda3/bin/activate python3
+
+                  \        pip install --upgrade boto3 awscli botocore s3transfer
+
+                  \       \ 
+
+                  \        echo \"Start script complete - environment variables set and packages upgraded in JupyterSystemEnv\"
+
+                  \        #Restart required for jupyter to have access to env variables
+
+                  \        sudo systemctl restart jupyter-server --no-block
+
+                  \        "
+                - DYNAMODB_TABLE_CONFIGS:
+                    Ref: ACMAlgorithmConfigsTable54D3AB22
+                  DYNAMODB_TABLE_EXECUTIONS:
+                    Ref: PipelineExecutionsTable2DEF886F
+                  SECRETS_NAME:
+                    Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+                  STEP_FUNCTION_ARN:
+                    Fn::GetAtt:
+                      - ACMPipeline
+                      - Arn
+                  ECR_ACCESS_ROLE:
+                    Fn::GetAtt:
+                      - ACMECRAccessRoleF4304627
+                      - Arn
+                  CLOUDWATCH_ACCESS_ROLE:
+                    Fn::GetAtt:
+                      - ACMCloudWatchAccessRole4111A26A
+                      - Arn
+                  ECR_REPO_NAME:
+                    Ref: ACMECRRepository0DA7DBA7
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMNotebookLifecycleConfig
+  ACMNotebookInstance:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties:
+      DirectInternetAccess: Enabled
+      InstanceType: ml.t3.medium
+      LifecycleConfigName:
+        Fn::Sub: ${AWS::StackName}-lifecycle-config
+      NotebookInstanceName:
+        Fn::Sub: ${AWS::StackName}-ACM-notebook
+      RoleArn:
+        Fn::GetAtt:
+          - SageMakerNotebookRole63C8214F
+          - Arn
+      RootAccess: Enabled
+      Tags:
+        - Key: Application
+          Value: ACM-Custom-Models
+        - Key: Component
+          Value: ML-Pipeline
+      VolumeSizeInGB: 5
+    DependsOn:
+      - ACMNotebookLifecycleConfig
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMNotebookInstance
+  ACMApplication:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name:
+        Fn::Sub: ${AWS::StackName}-ACM-Application
+      Description: ACM Custom Models ML Pipeline Application
+      ResourceQuery:
+        Type: TAG_FILTERS_1_0
+        Query:
+          ResourceTypeFilters:
+            - AWS::AllSupported
+          TagFilters:
+            - Key: Application
+              Values:
+                - ACM-Custom-Models
+    Metadata:
+      aws:cdk:path: mmmtesting/ACMApplication
+Outputs:
+  StepFunctionArn:
+    Description: ARN of the ACM Step Function
+    Value:
+      Fn::GetAtt:
+        - ACMPipeline
+        - Arn
+  ECRRepository:
+    Description: Name of the ECR repository
+    Value:
+      Ref: ACMECRRepository0DA7DBA7
+  ECRAccessRole:
+    Description: ARN of the ECR access role
+    Value:
+      Fn::GetAtt:
+        - ACMECRAccessRoleF4304627
+        - Arn
+  CloudWatchAccessRole:
+    Description: ARN of the CloudWatch access role
+    Value:
+      Fn::GetAtt:
+        - ACMCloudWatchAccessRole4111A26A
+        - Arn
+  SecretsName:
+    Description: Name of the Secrets Manager secret
+    Value:
+      Fn::Sub: ${AWS::StackName}-Amazon-Ads-API-Secrets
+  DynamoDBConfigsTable:
+    Description: Name of the DynamoDB configs table
+    Value:
+      Ref: ACMAlgorithmConfigsTable54D3AB22
+  DynamoDBExecutionsTable:
+    Description: Name of the DynamoDB executions table
+    Value:
+      Ref: PipelineExecutionsTable2DEF886F
+  S3BucketName:
+    Description: Name of the S3 data bucket
+    Value:
+      Ref: ACMDataBucket10FB3863
+  ACMOperatorRoleArn:
+    Description: ARN of the ACM Operator Role for users
+    Value:
+      Fn::GetAtt:
+        - ACMOperatorRoleE4C2FD56
+        - Arn
